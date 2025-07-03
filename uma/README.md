@@ -57,3 +57,5 @@ options:
 ## Installation
 If not detected, fairchem will be installed to a `.venv` directory by the wrapper scripts the first time you are using them.
 Depending on your download speed, this might take a while.
+## Notebook example
+See [../notebooks/uma_workflow_example.ipynb](../notebooks/uma_workflow_example.ipynb) for a Jupyter notebook that demonstrates starting the UMA server, submitting jobs with `submit_uma`, and running ORCA via `umaclient.sh`.
