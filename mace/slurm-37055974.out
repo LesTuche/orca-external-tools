@@ -1,0 +1,455 @@
+Batch Script for 37055974
+--------------------------------------------------------------------------------
+#!/bin/bash
+
+#SBATCH -J /cluster/home/jlandis/tst_orca_external_tools/goat.inp
+#SBATCH --mem-per-cpu=2500
+#SBATCH -n 40
+#SBATCH --tmp=8000
+#SBATCH --time=24:00:00
+#SBATCH --output=slurm-%j.out
+#SBATCH --mail-type=END,FAIL
+sacct -j "$SLURM_JOB_ID" -B
+
+toinp="$TMPDIR"/goat.inp # defining the path of the input file on local scratch
+cp /cluster/home/jlandis/tst_orca_external_tools/goat.inp $toinp # copying the input file to local scratch
+cp /cluster/home/jlandis/tst_orca_external_tools/*.xyz "$TMPDIR"/ # copy forth coordinate files potentially used as input
+cp /cluster/home/jlandis/tst_orca_external_tools/*.gbw "$TMPDIR"/ # copy forth orbital files potentially used as input
+cp /cluster/home/jlandis/tst_orca_external_tools/*.bas "$TMPDIR"/ # copy forth basis set files potentially used as input
+cp /cluster/home/jlandis/tst_orca_external_tools/*.hess "$TMPDIR"/ # copy hess files 
+cp /cluster/home/jlandis/tst_orca_external_tools/*.pc "$TMPDIR"/ # copy pointcharges file 
+cp /cluster/home/jlandis/tst_orca_external_tools/*.nbo "$TMPDIR"/ # NBO files
+
+
+(
+
+
+echo /cluster/home/jlandis/tst_orca_external_tools
+
+while [ ! -f "$TMPDIR/fin" ];
+do
+cp -u "$TMPDIR"/*.out /cluster/home/jlandis/tst_orca_external_tools/ # synchronize output file while calculation still running
+cp -u "$TMPDIR"/*.xyz /cluster/home/jlandis/tst_orca_external_tools/
+cp -u "$TMPDIR"/goat.gbw /cluster/home/jlandis/tst_orca_external_tools/
+cp -u "$TMPDIR"/*.interp  /cluster/home/jlandis/tst_orca_external_tools
+cp -u "$TMPDIR"/*.log /cluster/home/jlandis/tst_orca_external_tools
+
+sleep 1m # only copy back files every minute
+done
+) &
+(
+cd "$TMPDIR"/
+if [ "True" == True ]; then
+   
+    /cluster/home/jlandis/orca-external-tools/mace/maceserver.sh --bind 0.0.0.0:8888 --nthreads 30 &
+    SCRIPT_PID=
+    sleep 5
+    MACE_SERVER_PID=
+    export MACE_BIND="127.0.0.1:8888"
+    echo "Started MACE server on 0.0.0.0:8888 with script PID: $SCRIPT_PID, server PID: $MACE_SERVER_PID server threads: 30"
+    echo "MACE_BIND set to: $MACE_BIND"
+    sleep 5
+fi
+/cluster/software/commercial/orca/6.1.0/x86_64/bin/orca "$toinp"  > "/cluster/home/jlandis/tst_orca_external_tools/goat.out" 2> "/cluster/home/jlandis/tst_orca_external_tools/goat.err" || touch ERROR
+if [ "True" == "True" ] && [ ! -z "$MACE_SERVER_PID" ]; then
+    kill $MACE_SERVER_PID
+    echo "Stopped MACE server"
+fi
+
+pkill -f "maceserver.*8888" 2>/dev/null
+
+
+touch fin # creates a file called fin signalling that the Orca job finished
+) &
+wait
+rm fin # delete fin file as it is not needed
+rm "$TMPDIR"/*.tmp* 2> /dev/null # delete all temp files before copying back
+rm "$TMPDIR"/*.bas*
+cp -u "$TMPDIR"/* /cluster/home/jlandis/tst_orca_external_tools/ # copying back all files after finishing the calculation excluding folders with content
+
+
+
+myjobs -j $SLURM_JOB_ID
+
+
+cp: cannot stat '/cluster/home/jlandis/tst_orca_external_tools/*.gbw': No such file or directory
+cp: cannot stat '/cluster/home/jlandis/tst_orca_external_tools/*.bas': No such file or directory
+cp: cannot stat '/cluster/home/jlandis/tst_orca_external_tools/*.hess': No such file or directory
+cp: cannot stat '/cluster/home/jlandis/tst_orca_external_tools/*.pc': No such file or directory
+cp: cannot stat '/cluster/home/jlandis/tst_orca_external_tools/*.nbo': No such file or directory
+/cluster/home/jlandis/tst_orca_external_tools
+cp: cannot stat '/scratch/tmp.37055974.jlandis/*.out': No such file or directory
+MACESERVER_PID: 574372
+cp: cannot stat '/scratch/tmp.37055974.jlandis/goat.gbw': No such file or directory
+cp: cannot stat '/scratch/tmp.37055974.jlandis/*.interp': No such file or directory
+cp: cannot stat '/scratch/tmp.37055974.jlandis/*.log': No such file or directory
+Started MACE server on 0.0.0.0:8888 with script PID: , server PID:  server threads: 30
+MACE_BIND set to: 127.0.0.1:8888
+INFO:waitress:Serving on http://0.0.0.0:8888
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py:143: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  torch.load(f=model_path, map_location=device)
+ERROR:maceserver:Exception on /calculate [POST]
+Traceback (most recent call last):
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/server.py", line 62, in run_mace
+    energy, gradient = common.process_output(atoms)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/common.py", line 264, in process_output
+    energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/atoms.py", line 772, in get_potential_energy
+    energy = self._calc.get_potential_energy(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/abc.py", line 26, in get_potential_energy
+    return self.get_property(name, atoms)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/calculator.py", line 515, in get_property
+    self.calculate(atoms, [name], system_changes)
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py", line 320, in calculate
+    node_e0 = self.models[0].atomic_energies_fn(batch["node_attrs"])[
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 812, in module_call_wrapper
+    return self.call_module(mod, forward, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 515, in call_module
+    module_qualified_name = self.path_of_module(m)
+                            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 479, in path_of_module
+    raise NameError("module is not installed as a submodule")
+NameError: module is not installed as a submodule
+ERROR:maceserver:Exception on /calculate [POST]
+Traceback (most recent call last):
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/server.py", line 62, in run_mace
+    energy, gradient = common.process_output(atoms)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/common.py", line 264, in process_output
+    energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/atoms.py", line 772, in get_potential_energy
+    energy = self._calc.get_potential_energy(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/abc.py", line 26, in get_potential_energy
+    return self.get_property(name, atoms)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/calculator.py", line 515, in get_property
+    self.calculate(atoms, [name], system_changes)
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py", line 320, in calculate
+    node_e0 = self.models[0].atomic_energies_fn(batch["node_attrs"])[
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 812, in module_call_wrapper
+    return self.call_module(mod, forward, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 515, in call_module
+    module_qualified_name = self.path_of_module(m)
+                            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 479, in path_of_module
+    raise NameError("module is not installed as a submodule")
+NameError: module is not installed as a submodule
+ERROR:maceserver:Exception on /calculate [POST]
+Traceback (most recent call last):
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/server.py", line 62, in run_mace
+    energy, gradient = common.process_output(atoms)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/common.py", line 264, in process_output
+    energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/atoms.py", line 772, in get_potential_energy
+    energy = self._calc.get_potential_energy(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/abc.py", line 26, in get_potential_energy
+    return self.get_property(name, atoms)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/calculator.py", line 515, in get_property
+    self.calculate(atoms, [name], system_changes)
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py", line 320, in calculate
+    node_e0 = self.models[0].atomic_energies_fn(batch["node_attrs"])[
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 812, in module_call_wrapper
+    return self.call_module(mod, forward, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 515, in call_module
+    module_qualified_name = self.path_of_module(m)
+                            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 479, in path_of_module
+    raise NameError("module is not installed as a submodule")
+NameError: module is not installed as a submodule
+ERROR:maceserver:Exception on /calculate [POST]
+Traceback (most recent call last):
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/server.py", line 62, in run_mace
+    energy, gradient = common.process_output(atoms)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/common.py", line 264, in process_output
+    energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/atoms.py", line 772, in get_potential_energy
+    energy = self._calc.get_potential_energy(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/abc.py", line 26, in get_potential_energy
+    return self.get_property(name, atoms)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/calculator.py", line 515, in get_property
+    self.calculate(atoms, [name], system_changes)
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py", line 320, in calculate
+    node_e0 = self.models[0].atomic_energies_fn(batch["node_attrs"])[
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 812, in module_call_wrapper
+    return self.call_module(mod, forward, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 515, in call_module
+    module_qualified_name = self.path_of_module(m)
+                            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 479, in path_of_module
+    raise NameError("module is not installed as a submodule")
+NameError: module is not installed as a submodule
+ERROR:maceserver:Exception on /calculate [POST]
+Traceback (most recent call last):
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/server.py", line 62, in run_mace
+    energy, gradient = common.process_output(atoms)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/common.py", line 264, in process_output
+    energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/atoms.py", line 772, in get_potential_energy
+    energy = self._calc.get_potential_energy(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/abc.py", line 26, in get_potential_energy
+    return self.get_property(name, atoms)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/calculator.py", line 515, in get_property
+    self.calculate(atoms, [name], system_changes)
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py", line 320, in calculate
+    node_e0 = self.models[0].atomic_energies_fn(batch["node_attrs"])[
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 812, in module_call_wrapper
+    return self.call_module(mod, forward, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 515, in call_module
+    module_qualified_name = self.path_of_module(m)
+                            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 479, in path_of_module
+    raise NameError("module is not installed as a submodule")
+NameError: module is not installed as a submodule
+ERROR:maceserver:Exception on /calculate [POST]
+Traceback (most recent call last):
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/server.py", line 62, in run_mace
+    energy, gradient = common.process_output(atoms)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/common.py", line 264, in process_output
+    energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/atoms.py", line 772, in get_potential_energy
+    energy = self._calc.get_potential_energy(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/abc.py", line 26, in get_potential_energy
+    return self.get_property(name, atoms)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/calculator.py", line 515, in get_property
+    self.calculate(atoms, [name], system_changes)
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py", line 320, in calculate
+    node_e0 = self.models[0].atomic_energies_fn(batch["node_attrs"])[
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 812, in module_call_wrapper
+    return self.call_module(mod, forward, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 515, in call_module
+    module_qualified_name = self.path_of_module(m)
+                            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 479, in path_of_module
+    raise NameError("module is not installed as a submodule")
+NameError: module is not installed as a submodule
+ERROR:maceserver:Exception on /calculate [POST]
+Traceback (most recent call last):
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/server.py", line 62, in run_mace
+    energy, gradient = common.process_output(atoms)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/common.py", line 264, in process_output
+    energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/atoms.py", line 772, in get_potential_energy
+    energy = self._calc.get_potential_energy(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/abc.py", line 26, in get_potential_energy
+    return self.get_property(name, atoms)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/calculator.py", line 515, in get_property
+    self.calculate(atoms, [name], system_changes)
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py", line 320, in calculate
+    node_e0 = self.models[0].atomic_energies_fn(batch["node_attrs"])[
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 812, in module_call_wrapper
+    return self.call_module(mod, forward, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 515, in call_module
+    module_qualified_name = self.path_of_module(m)
+                            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 479, in path_of_module
+    raise NameError("module is not installed as a submodule")
+NameError: module is not installed as a submodule
+ERROR:maceserver:Exception on /calculate [POST]
+Traceback (most recent call last):
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/server.py", line 62, in run_mace
+    energy, gradient = common.process_output(atoms)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/orca-external-tools/mace/src/maceexttool/common.py", line 264, in process_output
+    energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/atoms.py", line 772, in get_potential_energy
+    energy = self._calc.get_potential_energy(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/abc.py", line 26, in get_potential_energy
+    return self.get_property(name, atoms)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/ase/calculators/calculator.py", line 515, in get_property
+    self.calculate(atoms, [name], system_changes)
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/mace/calculators/mace.py", line 320, in calculate
+    node_e0 = self.models[0].atomic_energies_fn(batch["node_attrs"])[
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 812, in module_call_wrapper
+    return self.call_module(mod, forward, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 515, in call_module
+    module_qualified_name = self.path_of_module(m)
+                            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/cluster/home/jlandis/mace_venv/lib/python3.11/site-packages/torch/fx/_symbolic_trace.py", line 479, in path_of_module
+    raise NameError("module is not installed as a submodule")
+NameError: module is not installed as a submodule
+rm: cannot remove 'fin': No such file or directory
+rm: cannot remove '/scratch/tmp.37055974.jlandis/*.bas*': No such file or directory
+cp: -r not specified; omitting directory '/scratch/tmp.37055974.jlandis/tmpp1ndfatu'
+Job information
+ Job ID                          : 37055974
+ Job name                        : /cluster/home/jlandis/tst_orca_external_tools/goat.inp
+ Status                          : RUNNING
+ Running on node                 : eu-g9-002-3
+ User                            : jlandis
+ Shareholder group               : es_coperet
+ Slurm partition (queue)         : normal.24h
+ Command                         : sbatch
+ Working directory               : /cluster/home/jlandis/tst_orca_external_tools
+Requested resources
+ Requested runtime               : 1-00:00:00
+ Requested cores (total)         : 40
+ Requested nodes                 : 1
+ Requested memory (total)        : 100000 MiB
+Job history
+ Submitted at                    : 2025-07-11T10:33:59
+ Started at                      : 2025-07-11T10:34:05
+ Queue waiting time              : 6 s 
+Resource usage
+ Wall-clock                      : 00:01:03
+ Total CPU time                  : 00:02:05
+ CPU utilization                 : 4.96%
+ Total resident memory           : 595.65 MiB
+ Resident memory utilization     : .59%
+

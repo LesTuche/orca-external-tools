@@ -1,0 +1,230 @@
+#!/bin/bash
+readonly ARGS=("$@")
+
+# your orca input file MUST provide %pal and %maxcore blocks for this script to work!
+# you also must be on the new software stack
+path_to_server="/cluster/home/jlandis/orca-external-tools/mace/maceserver.sh"
+
+function get_args () {
+    # Set up default paramters;
+    scr=8000 # scratch space in MB (per Node, not per core as in LSF)
+    walltime=24 # wall time in h
+    orcaversion=610 # default orca version
+    xtbversion=6.7
+    output=slurm-%j.out
+    mail=True
+    mace_server=False # if True, the job will run the mace server. for ML-potential calculations
+    # Parse the arguments
+    local OPTIND OPTARG flag w r v x o m
+    while getopts ':w:r:v:x:o:m:s:' flag; do
+        case $flag in
+            w) walltime=${OPTARG};;
+            r) scr=${OPTARG};;
+            v) orcaversion=${OPTARG};;
+	        x) xtbversion=${OPTARG};;
+	        o) output=${OPTARG};;
+	        m) mail=${OPTARG};; 
+            s) mace_server=${OPTARG};;
+            *)
+              usage
+              exit
+              ;;
+        esac
+    done
+    file=${*:$OPTIND:1}
+
+    if [ "$mail" == True  ]; then
+	    mail="#SBATCH --mail-type=END,FAIL"
+    else
+	    mail=""
+    fi
+
+}
+
+function set_vars_for_orca_version (){
+    case $1 in
+        503)
+        modules="stack/2024-06 openmpi/4.1.6 orca/5.0.3";;
+        504)
+        modules="stack/2024-06 openmpi/4.1.6 orca/5.0.4";;
+	    600)
+	    modules="stack/2024-06 openmpi/4.1.6 orca/6.0.0";;
+	    601) 
+	    modules="stack/2024-06 openmpi/4.1.6 orca/6.0.1";;
+
+   	 610)
+	    modules="stack/2024-06 openmpi/4.1.5 orca/6.1.0";;
+
+        *)
+          usage
+          exit
+          ;;
+    esac
+}
+
+
+function usage () {
+    echo "  ssubo [-r scratchspace_in_MB] [-w walltime_in_h] [-v ORCA_version] filename"
+    echo "  (default parameters are -r 8000, -w 24 and -v 504)"
+    echo "  you must be using the new LMOD software stack"
+    echo "  your input files must define %pal and %maxcore blocks"
+    echo "  your input file must have a newline at the end"
+}
+
+function main () {
+    if [[ ${#ARGS[@]} -eq 0 ]]; then
+        usage
+        exit
+    fi
+
+    get_args "${ARGS[@]}"
+    fpath=$(readlink -f $file)
+    fdir=$(dirname $fpath)
+    filename=$(basename $fpath)
+	name=${filename/.inp}
+
+#	dos2unix $fpath # converting file to unix from dos
+
+	nproc=$(grep -i "%pal" $fpath | awk '{print $3}' | tac | tail -n1) # get number of processor from Orca input
+	memo=$(grep -i "%maxcore" $fpath | awk '{print $2}' | tac | tail -n1) # get memory per processor from Orca input
+	memo=$((memo * 125 / 100)) # multiply by some overhead as orca always uses more memory than you request
+
+    set_vars_for_orca_version $orcaversion
+
+    #module purge
+    #if [ -n "$xtbversion" ] ; then
+    #    module load xtb/${xtbversion}
+#	echo ${xtbversion}
+#        xtb_path="$(which xtb)"
+#        export XTBEXE="$xtb_path"
+    #fi
+#    echo "$modules"
+#    module load "$modules"
+#    module list
+
+
+
+       
+
+
+    
+    orcaexec=$(which orca)
+    if [ -n "$orcaexec" ]; then
+	echo "orca executable found: $orcaexec"
+    else
+	echo "orca executable not found! Aborting!"
+	exit 1
+    fi
+
+    SERVER_THREADS=$((nproc*3/4))
+    if [ "$mace_server" == True ]; then
+
+	    echo "SERVER_THREADS : $SERVER_THREADS"
+	    if [ $SERVER_THREADS -lt 8 ] 
+	    then
+		    SERVER_THREADS=8
+	    fi
+
+	    if [ $SERVER_THREADS -gt 40 ]; then 
+		    SERVER_THREADS=40
+	    fi
+    fi
+
+
+	    
+## 
+#SBATCH --constraint=ibfabric6  constraint jobs to only run on eu1 nodes
+
+    export RSH_COMMAND="ssh" # Required to run multi-process numerical calculations on multiple nodes for instance for jobs with more than 24 cores
+    export OMP_NUM_THREADS=1 # Orca uses MPI to parallelize a job and not OpenMP (1 thread per process), Orca 3.0.3 has problems when set to $nproc
+    export OMPI_MCA_btl=self,tcp,vader # Removes messages about OpenMPI network interface in the output files
+    sbatch <<-script
+#!/bin/bash
+
+#SBATCH -J ${fpath//"/cluster/scratch/$USER/"}
+#SBATCH --mem-per-cpu=$memo
+#SBATCH -n $nproc
+#SBATCH --tmp=$scr
+#SBATCH --time=$walltime:00:00
+#SBATCH --output=$output
+$mail
+sacct -j "\$SLURM_JOB_ID" -B
+
+toinp="\$TMPDIR"/$filename # defining the path of the input file on local scratch
+cp $fpath \$toinp # copying the input file to local scratch
+cp $fdir/*.xyz "\$TMPDIR"/ # copy forth coordinate files potentially used as input
+cp $fdir/*.gbw "\$TMPDIR"/ # copy forth orbital files potentially used as input
+cp $fdir/*.bas "\$TMPDIR"/ # copy forth basis set files potentially used as input
+cp $fdir/*.hess "\$TMPDIR"/ # copy hess files 
+cp $fdir/*.pc "\$TMPDIR"/ # copy pointcharges file 
+cp $fdir/*.nbo "\$TMPDIR"/ # NBO files
+
+
+(
+
+
+echo $PWD
+
+while [ ! -f "\$TMPDIR/fin" ];
+do
+cp -u "\$TMPDIR"/*.out $fdir/ # synchronize output file while calculation still running
+cp -u "\$TMPDIR"/*.xyz $fdir/
+cp -u "\$TMPDIR"/${name}.gbw $fdir/
+cp -u "\$TMPDIR"/*.interp  $fdir
+cp -u "\$TMPDIR"/*.log $fdir
+
+sleep 1m # only copy back files every minute
+done
+) &
+(
+cd "\$TMPDIR"/
+if [ "$mace_server" == True ]; then
+    # Set PyTorch environment variables to avoid model loading issues
+    export TORCH_JIT_DISABLE=1
+    export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
+    export PYTHONUNBUFFERED=1
+   
+    $path_to_server --bind 0.0.0.0:8888 --nthreads $SERVER_THREADS &
+    SCRIPT_PID=\$!
+    sleep 5
+    MACE_SERVER_PID=\$(pgrep -f "maceserver.*8888" | head -1)
+    export MACE_BIND="127.0.0.1:8888"
+    echo "Started MACE server on 0.0.0.0:8888 with script PID: \$SCRIPT_PID, server PID: \$MACE_SERVER_PID server threads: $SERVER_THREADS"
+    echo "MACE_BIND set to: \$MACE_BIND"
+    sleep 5
+fi
+$orcaexec "\$toinp"  > "${fpath/.inp/.out}" 2> "${fpath/.inp/.err}" || touch ERROR
+if [ "$mace_server" == "True" ] && [ ! -z "\$MACE_SERVER_PID" ]; then
+    kill \$MACE_SERVER_PID
+    echo "Stopped MACE server"
+fi
+
+pkill -f "maceserver.*8888" 2>/dev/null
+
+
+touch fin # creates a file called fin signalling that the Orca job finished
+) &
+wait
+rm fin # delete fin file as it is not needed
+rm "\$TMPDIR"/*.tmp* 2> /dev/null # delete all temp files before copying back
+rm "\$TMPDIR"/*.bas*
+cp -u "\$TMPDIR"/* $fdir/ # copying back all files after finishing the calculation excluding folders with content
+
+
+
+myjobs -j \$SLURM_JOB_ID
+
+script
+    echo "Orca Version:" $orcaversion
+    echo "Cores:" $nproc
+    echo "Time (hours):" $walltime:00
+	echo "Memory (MB per core):" $memo
+    echo "Scratch space (MB per node):" $scr
+    echo "Input file:" $fpath
+}
+
+main
+
+
+
+

@@ -1,0 +1,21 @@
+[project]
+name = "maceexttool"
+version = "0.1.0"
+description = "MACE wrapper for ORCA's ExtTool interface"
+requires-python = ">=3.11"
+dependencies = [
+    "mace-torch>=0.3.0",
+    "Flask>=3,<4",
+    "numpy<3.0.0,>=2.1.1",
+    "requests>=2,<3",
+    "waitress>=3,<4"
+]
+
+[project.scripts]
+maceexttool = "maceexttool.standalone:main"
+maceserver = "maceexttool.server:main"
+maceclient = "maceexttool.client:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
