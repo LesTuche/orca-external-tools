@@ -61,11 +61,10 @@ class GxtbCalc(BaseCalc):
             additional arguments to pass to xtb
         """
 
-        # Set number of cores by setting OMP_NUM_THREADS
         os.environ["OMP_NUM_THREADS"] = f"{calc_data.ncores},1"
 
         # xyzfile is positional in xtb; --gxtb activates the g-xTB method
-        args = [calc_data.xyzfile.name, "--gxtb"] + args
+        args = [calc_data.xyzfile.name, "--gxtb", "-P", str(calc_data.ncores)] + args
 
         if calc_data.dograd:
             args += ["--grad"]
