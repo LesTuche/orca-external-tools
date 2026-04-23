@@ -77,15 +77,15 @@ class GxtbCalc(BaseCalc):
         return
 
     def read_gxtbout(
-        self, energy_out: str | Path, grad_out: str | Path, natoms: int, dograd: bool
+        self, stdout_out: str | Path, grad_out: str | Path, natoms: int, dograd: bool
     ) -> tuple[float, list[float]]:
         """
         Read the output from gxtb
 
         Parameters
         ----------
-        energy_out: str | Path
-            file with energy
+        stdout_out: str | Path
+            xtb stdout log file
         grad_out: str | Path
             file with gradient
         natoms: int
@@ -102,21 +102,17 @@ class GxtbCalc(BaseCalc):
         """
         energy = None
         gradient = []
-        # read the energy from the output file
-        energy_path = check_path(energy_out)
-        with energy_path.open() as f:
-            lines = f.readlines()
-            for i, line in enumerate(lines):
-                if line.strip() == "$energy":
-                    # read the next line and split into values
-                    parts = lines[i + 1].split()
-                    # return the second value as float
-                    energy = float(parts[1])
+        # read energy from stdout (always present regardless of --grad)
+        stdout_path = check_path(stdout_out)
+        with stdout_path.open() as f:
+            for line in f:
+                if "TOTAL ENERGY" in line:
+                    energy = float(line.split()[3])
                     break
 
         if not energy:
-            raise ValueError("Energy couldn't be found on gxtb output file.")
-        # read the gradient from the .gradient file
+            raise ValueError("Energy couldn't be found in gxtb output.")
+        # read the gradient from the turbomole gradient file (only written when --grad passed)
         if dograd:
             grad_path = check_path(grad_out)
             natoms_read = 0
@@ -193,13 +189,11 @@ class GxtbCalc(BaseCalc):
         # get the number of atoms from the xyz file
         natoms = nat_from_xyzfile(xyz_file=calc_data.xyzfile)
 
-        # energy and gradient file
-        energy_out = "energy"
         gradient_out = "gradient"
 
         # parse the gxtb output
         energy, gradient = self.read_gxtbout(
-            energy_out=energy_out,
+            stdout_out=calc_data.output_file,
             grad_out=gradient_out,
             natoms=natoms,
             dograd=calc_data.dograd,
