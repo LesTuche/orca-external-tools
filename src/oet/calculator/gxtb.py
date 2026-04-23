@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-This is a simple wrapper for the g-xTB binary (github.com/grimme-lab/g-xTB), compatible with ORCA's ExtTool interface.
-Note that this is currently a development version of g-xTB and that the final implementation will be available via tblite.
-It currently runs only serial due to technical limitations of the development version.
+Wrapper for g-xTB via the xtb binary (github.com/grimme-lab/g-xtb), compatible with ORCA's ExtTool interface.
+g-xTB is activated by passing --gxtb to the xtb binary (v6.7.1+). No external parameter files are required.
 
 Provides
 --------
@@ -13,7 +12,6 @@ main: function
 """
 
 import os
-import shutil
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -34,7 +32,7 @@ class GxtbCalc(BaseCalc):
     @property
     def PROGRAM_NAMES(self) -> list[str]:
         """Program names to search for in PATH"""
-        return ["gxtb", "g-xTB", "g-xtb"]
+        return ["xtb"]
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:
@@ -45,74 +43,7 @@ class GxtbCalc(BaseCalc):
         parser: ArgumentParser
             Parser that should be extended
         """
-        parser.add_argument("-x", "--exe", dest="prog", help="Path to the gxtb executable")
-        parser.add_argument(
-            "-p",
-            metavar="gxtb_parameterfile",
-            dest="gxtb_parameterfile",
-            help="path to the gxtb parameterfile",
-        )
-        parser.add_argument(
-            "-e",
-            metavar="eeq_parameterfile",
-            dest="eeq_parameterfile",
-            help="path to the eeq parameterfile",
-        )
-        parser.add_argument(
-            "-b",
-            metavar="basis_parameterfile",
-            dest="basis_parameterfile",
-            help="path to the basis parameterfile",
-        )
-
-    def check_parameter_files(self, file_path: str | None, filename: str) -> Path:
-        """
-        Check a parameter file. Looks first for CLAs, then GXTBHOME,
-        then HOME, and finally the current working directory.
-        Terminates the program if the file cannot be found.
-
-        Parameters
-        ----------
-        file_path: str | None
-            CLA. None if no CLA was given
-        filename: str
-            filename of the parameterfile to look for
-
-        Returns
-        -------
-        Path
-            Path to the parameterfile
-        """
-        # First the path given via cmd
-        if file_path:
-            param_file = Path(file_path).expanduser().resolve()
-            if check_file(param_file):
-                return param_file
-            else:
-                print(f"File {file_path} not found. Searching in other locations.")
-        # Next the $GXTBHOME
-        gxtb_home = os.getenv("GXTBHOME")
-        if gxtb_home:
-            gxtb_home_path = Path(gxtb_home).expanduser().resolve()
-            param_file = (gxtb_home_path / filename).resolve()
-            if check_file(param_file):
-                print(f"Taking {filename} from GXTBHOME {gxtb_home_path}.")
-                return param_file
-        # Home directory
-        param_file = (Path.home() / filename).resolve()
-        if check_file(param_file):
-            print(f"Taking {filename} from HOME.")
-            return param_file
-        # Current working dir
-        cwd = Path.cwd()
-        param_file = (cwd / filename).resolve()
-        if check_file(param_file):
-            print(f"Taking {filename} from cwd {cwd}.")
-            return param_file
-        # If nothing was found, terminate
-        print(f"No {filename} found. Terminating")
-        print("Please install gxtb correctly from GitHub.")
-        sys.exit(1)
+        parser.add_argument("-x", "--exe", dest="prog", help="Path to the xtb executable (g-xTB build)")
 
     def run_gxtb(
         self,
@@ -120,32 +51,24 @@ class GxtbCalc(BaseCalc):
         args: list[str],
     ) -> None:
         """
-        Run the gxtb program and redirect its STDOUT and STDERR to a file.
+        Run the xtb program with --gxtb and redirect its STDOUT and STDERR to a file.
 
         Parameters
         ----------
         calc_data: CalculationData
             Settings for the calculation
         args : list[str, ...]
-            additional arguments to pass to gxtb
+            additional arguments to pass to xtb
         """
 
         # Set number of cores by setting OMP_NUM_THREADS
         os.environ["OMP_NUM_THREADS"] = f"{calc_data.ncores},1"
 
-        args += [
-            "-c",
-            calc_data.xyzfile.name,
-            "-p",
-            ".gxtb",
-            "-e",
-            ".eeq",
-            "-b",
-            ".basisq",
-        ]
+        # xyzfile is positional in xtb; --gxtb activates the g-xTB method
+        args = [calc_data.xyzfile.name, "--gxtb"] + args
 
         if calc_data.dograd:
-            args += ["-grad"]
+            args += ["--grad"]
 
         if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
@@ -250,9 +173,6 @@ class GxtbCalc(BaseCalc):
         """
         # Get the arguments parsed as defined in extend_parser
         prog = args_parsed.get("prog")
-        gxtb_parameterfile = args_parsed.get("gxtb_parameterfile")
-        eeq_parameterfile = args_parsed.get("eeq_parameterfile")
-        basis_parameterfile = args_parsed.get("basis_parameterfile")
         calc_data.set_program_path(prog)
         # Set and check the program path if its executable
         calc_data.set_program_path(prog)
@@ -262,19 +182,6 @@ class GxtbCalc(BaseCalc):
             raise FileNotFoundError(
                 f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
             )
-
-        # get parameter files
-        gxtb_param = self.check_parameter_files(gxtb_parameterfile, ".gxtb")
-        eeq_param = self.check_parameter_files(eeq_parameterfile, ".eeq")
-        basis_param = self.check_parameter_files(basis_parameterfile, ".basisq")
-
-        # Copy Parameterfiles to work_dir, so that they are provided to
-        # the gxtb binary later on as relative paths.
-        # This is necessary as the gxtb binary does not
-        # allow for paths longer than 80 character.
-        shutil.copy2(gxtb_param, Path.cwd() / ".gxtb")
-        shutil.copy2(eeq_param, Path.cwd() / ".eeq")
-        shutil.copy2(basis_param, Path.cwd() / ".basisq")
 
         # write .CHRG and .UHF file
         write_to_file(content=calc_data.charge, file=".CHRG")
