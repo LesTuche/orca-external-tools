@@ -14,6 +14,7 @@ main: function
 import os
 import sys
 from argparse import ArgumentParser
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,14 @@ from oet.core.misc import (
     run_command,
     write_to_file,
 )
+
+
+def _dbg(log: Path, msg: str) -> None:
+    ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    with log.open("a") as f:
+        f.write(f"[{ts}] pid={os.getpid()} {msg}\n")
+        f.flush()
+        os.fsync(f.fileno())
 
 
 class GxtbCalc(BaseCalc):
@@ -61,12 +70,12 @@ class GxtbCalc(BaseCalc):
             additional arguments to pass to xtb
         """
 
+        log = calc_data.orca_input_dir / "gxtb_debug.log"
         old_omp = os.environ.get("OMP_NUM_THREADS", "<unset>")
         os.environ["OMP_NUM_THREADS"] = str(calc_data.ncores)
         os.environ["MKL_NUM_THREADS"] = "1"
         os.environ["OMP_MAX_ACTIVE_LEVELS"] = "1"
-        print(f"[DEBUG gxtb] OMP_NUM_THREADS: {old_omp!r} -> {os.environ['OMP_NUM_THREADS']!r}")
-        print(f"[DEBUG gxtb] MKL_NUM_THREADS=1  OMP_MAX_ACTIVE_LEVELS=1")
+        _dbg(log, f"OMP_NUM_THREADS: {old_omp!r} -> {os.environ['OMP_NUM_THREADS']!r}  MKL_NUM_THREADS=1  OMP_MAX_ACTIVE_LEVELS=1")
 
         # xyzfile is positional in xtb; --gxtb activates the g-xTB method
         args = [calc_data.xyzfile.name, "--gxtb", "-P", str(calc_data.ncores)] + args
@@ -74,13 +83,13 @@ class GxtbCalc(BaseCalc):
         if calc_data.dograd:
             args += ["--grad"]
 
-        print(f"[DEBUG gxtb] CWD={os.getcwd()}")
-        print(f"[DEBUG gxtb] cmd={calc_data.prog_path} {args}")
+        _dbg(log, f"CWD={os.getcwd()}")
+        _dbg(log, f"cmd={calc_data.prog_path} {args}")
 
         if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
         run_command(calc_data.prog_path, calc_data.output_file, args)
-        print(f"[DEBUG gxtb] xtb finished OK")
+        _dbg(log, "xtb finished OK")
 
         return
 
@@ -187,9 +196,11 @@ class GxtbCalc(BaseCalc):
                 f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
             )
 
-        print(f"[DEBUG gxtb] calc() start — CWD={os.getcwd()}")
-        print(f"[DEBUG gxtb] tmp_dir={calc_data.tmp_dir}  orca_input_dir={calc_data.orca_input_dir}")
-        print(f"[DEBUG gxtb] xyzfile={calc_data.xyzfile}  ncores={calc_data.ncores}  dograd={calc_data.dograd}")
+        log = calc_data.orca_input_dir / "gxtb_debug.log"
+        _dbg(log, f"calc() start — CWD={os.getcwd()}")
+        _dbg(log, f"tmp_dir={calc_data.tmp_dir}  orca_input_dir={calc_data.orca_input_dir}")
+        _dbg(log, f"xyzfile={calc_data.xyzfile}  ncores={calc_data.ncores}  dograd={calc_data.dograd}")
+        _dbg(log, f"orca_input_dir contents: {sorted(p.name for p in calc_data.orca_input_dir.iterdir())}")
 
         # write .CHRG and .UHF file
         write_to_file(content=calc_data.charge, file=".CHRG")
@@ -204,14 +215,15 @@ class GxtbCalc(BaseCalc):
         gradient_out = "gradient"
 
         # parse the gxtb output
-        print(f"[DEBUG gxtb] reading output from {calc_data.output_file}  gradient_out={gradient_out}")
+        _dbg(log, f"reading output: {calc_data.output_file}  gradient_out={gradient_out}")
         energy, gradient = self.read_gxtbout(
             stdout_out=calc_data.output_file,
             grad_out=gradient_out,
             natoms=natoms,
             dograd=calc_data.dograd,
         )
-        print(f"[DEBUG gxtb] calc() done — energy={energy:.10f}  |grad|={len(gradient)}")
+        _dbg(log, f"orca_input_dir contents before return: {sorted(p.name for p in calc_data.orca_input_dir.iterdir())}")
+        _dbg(log, f"calc() done — energy={energy:.10f}  |grad|={len(gradient)}")
 
         return energy, gradient
 
