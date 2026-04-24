@@ -115,6 +115,9 @@ class CalculationData:
         files_to_copy = [self._orig_xyzfile]
         if self._orig_pointcharges:
             files_to_copy.append(self._orig_pointcharges)
+        # Track whether ORCA pre-created tmp_dir; if so, we must not delete it on cleanup
+        # (ORCA expects its external-tool working directory to persist after the wrapper exits)
+        self._we_created_tmp_dir = not self.tmp_dir.exists()
         # Make tmp directory so that every calculation is performed in its own directory
         copied_files = copy_files_to_tmpdir(
             files_to_copy=files_to_copy,
@@ -132,7 +135,8 @@ class CalculationData:
         # Go to starting directory (if not done before)
         if Path.cwd() == self.tmp_dir:
             os.chdir(self.start_dir)
-        shutil.rmtree(self.tmp_dir)
+        if self._we_created_tmp_dir:
+            shutil.rmtree(self.tmp_dir)
 
     def set_program_path(self, exe_path_or_name: Sequence[str] | str | Path | None) -> bool:
         """
